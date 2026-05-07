@@ -1,122 +1,90 @@
-# Offline RL / Stackelberg manipulation experiments
+# Hybrid Offline-Online Follower Manipulation in General-Sum Stackelberg Games
 
-Synthetic experiments for **hybrid offline–online follower manipulation** in Stackelberg bandits. The default entry point is a single script that runs tabular Hybrid-FMUCB (Algorithm 1), optional learning-curve figures, and an optional contextual extension (Algorithm 2). Rewards are **Bernoulli**; leader confidence sets use the regression-style radii in `hybrid_fmucb.py`.
+Synthetic experiments for **hybrid offline–online follower manipulation** in Stackelberg bandits (NeurIPS 2026 submission).
 
 ---
 
-## How to run
+## Repository Structure
 
-**Setup**
+```
+paper/            LaTeX source and final figures
+  latex.tex       Main paper
+  figures/        All figures referenced in the paper
+
+code/             Source code
+  run_experiments.py   Main experiment runner (exp1, exp2, exp3)
+  hybrid_fmucb.py      Core FMUCB algorithm implementation
+  aggregate.py         Aggregates per-game results into summary plots
+  requirements.txt     Python dependencies
+
+results/          Raw experiment results (20 games × 24 seeds each)
+  4x4/           4×4 game results (exp1 + exp2 + exp3)
+  6x6/           6×6 game results (exp1 + exp2)
+  8x8/           8×8 game results (exp1 + exp2)
+```
+
+---
+
+## Setup
 
 ```bash
+cd code
 pip install -r requirements.txt
 ```
 
-**Full default (Experiment 1 + Experiment 2 + learning curves)**  
-Writes figures under `figures/` (change with `--out-dir`).
+## Running Experiments
 
 ```bash
-python run_experiments.py
+cd code
+
+# 4×4 games: Experiment 1 (N_off sweep) + Experiment 2 (coverage quality)
+python run_experiments.py --exp1-only --exp2-only \
+  --n-a 4 --n-b 4 --horizon 5000 --seeds 24 \
+  --game-seeds "737,1482,1603,3043,3197,4098,4356,5003,5466,5621,5954,7184,7466,7657,8001,8400,8671,9011,9134,9153" \
+  --exp1-n-off-grid "0,200,500,1000,2000,3000,5000,8000" \
+  --exp1-data-quality good --exp2-n-off 1000 \
+  --out-dir ../results/4x4 --no-progress
+
+# 6×6 games
+python run_experiments.py --exp1-only --exp2-only \
+  --n-a 6 --n-b 6 --horizon 8000 --seeds 24 \
+  --game-seeds "737,1482,1603,3043,3197,4098,4356,5003,5466,5621,5954,7184,7466,7657,8001,8400,8671,9011,9134,9153" \
+  --exp1-n-off-grid "0,500,1000,2000,4000,6000,10000,15000" \
+  --exp1-data-quality good --exp2-n-off 2000 \
+  --out-dir ../results/6x6 --no-progress
+
+# 8×8 games
+python run_experiments.py --exp1-only --exp2-only \
+  --n-a 8 --n-b 8 --horizon 12000 --seeds 24 \
+  --game-seeds "737,1482,1603,3043,3197,4098,4356,5003,5466,5621,5954,7184,7466,7657,8001,8400,8671,9011,9134,9153" \
+  --exp1-n-off-grid "0,1000,2000,4000,8000,12000,20000,30000" \
+  --exp1-data-quality good --exp2-n-off 4000 \
+  --out-dir ../results/8x8 --no-progress
+
+# Experiment 3 (contextual generalization, 4×4 only)
+python run_experiments.py --exp3 \
+  --n-a 4 --n-b 4 --horizon 20000 --seeds 24 \
+  --exp3-n-off 1000 --exp3-n-x-list "5,10,20,30" --d-ctx 3 \
+  --out-dir ../results/4x4 --no-progress
 ```
 
-**Run only part of the pipeline**
+## Aggregating Results into Figures
 
-| Goal | Command |
-|------|---------|
-| Only Exp 1 | `python run_experiments.py --exp1-only` |
-| Only Exp 2 | `python run_experiments.py --exp2-only` |
-| Exp 1 and 2, no learning curves | `python run_experiments.py --exp1-only --exp2-only` |
-| Only learning-curve plots | `python run_experiments.py --learning-curves-only` |
-| Skip learning curves (keep Exp 1–2) | `python run_experiments.py --skip-learning-curves` |
-| **Optional** Experiment 3 (contextual) | `python run_experiments.py --exp3` |
-
-**Faster or stronger learning-curve runs** (same algorithms; tuning only)
+After experiments complete, generate paper-quality plots:
 
 ```bash
-# Quick smoke test
-python run_experiments.py --learning-curves-only \
-  --learning-curve-horizon 1500 --learning-curve-seeds 4 --learning-curve-n-off 500
-
-# Longer horizon, more offline, capped γ for clearer curves
-python run_experiments.py --learning-curves-only --learning-curve-paper-profile
+cd code
+python aggregate.py ../results/4x4 ../results/6x6 ../results/8x8
 ```
 
-**Useful flags** (see `python run_experiments.py --help` for all)
+## Key Parameters
 
-| Flag | Default | Role |
-|------|---------|------|
-| `--out-dir` | `figures` | Output directory |
-| `--seeds` | `24` | Random seeds |
-| `--horizon` | `8000` | Online rounds (Exp 1–2 and Exp 3) |
-| `--gamma-exp3` | `0.01` | EXP3 exploration \(\gamma\) |
-| `--confidence-delta` | `0.05` | High-probability parameter for regression confidence sets (Alg. 1) |
-| `--skip-learning-curves` | off | Do not generate learning-curve PNGs |
-| `--exp3` | off | Run optional Exp 3 |
-
-Learning-curve–specific: `--learning-curve-horizon`, `--learning-curve-seeds`, `--learning-curve-n-off`, `--learning-curve-gamma-exp3`, `--learning-curve-paper-profile`, etc.
-
----
-
-## What the three experiment sets do
-
-### Experiment 1 (default on)
-
-**Question:** How does **offline dataset size** \(N_{\mathrm{off}}\) affect total manipulation mistakes \(T_{f,w}\) and a simple convergence proxy?
-
-**What it does:** For each seed, samples a random tabular game. For several values of \(N_{\mathrm{off}}\) (grid includes 0, 100, 500, 1000, 5000), builds a **uniform** offline dataset, then runs **online-only FMUCB** vs **hybrid** (offline init + online). Compares mistakes vs the true best manipulation rule \(F^{\mathrm{fm}}\).
-
-**Outputs:** `exp1_noff_vs_tfw.png`, `exp1_noff_vs_convergence.png`, `exp1_cumulative_mistakes.png`, `exp1_summary.json`.
-
----
-
-### Experiment 2 (default on)
-
-**Question:** Does **offline coverage quality** (whether \((a^*,b^*)\) is well represented) change hybrid performance?
-
-**What it does:** Fixes \(N_{\mathrm{off}}\) and compares three offline builders: **good** (biased toward Stackelberg pair), **neutral** (uniform), **poor** (avoids \((a^*,b^*)\)). Same online horizon and metrics as elsewhere.
-
-**Outputs:** `exp2_coverage_bars.png`, `exp2_summary.json`.
-
----
-
-### Experiment 3 (**optional**, `--exp3`)
-
-**Question:** How does a **contextual** extension (features \(\phi(x,a,b)\), Ridge / LinUCB-style sets) compare to a simpler per-context tabular hybrid on the same horizon?
-
-**What it does:** Only runs if you pass **`--exp3`**. Not part of the default run. Uses contextual simulators inside `run_experiments.py`; metrics are documented as contextual best-manipulation / LinUCB-style (see figure title and `exp3_summary.json`).
-
-**Outputs:** `exp3_contextual_vs_tabular.png`, `exp3_summary.json`.
-
----
-
-### Learning curves (default on unless `--skip-learning-curves`)
-
-**What they do:** Rolling **global** mistake rate vs time, plus a **conditional** curve restricted to rounds with \(a_t = a^*\) (Stackelberg leader row), which is often easier to interpret than the global average when EXP3 visits many rows.
-
-**Why the global curve can look almost flat (especially in short smoke tests):** The leader runs **EXP3** and keeps positive probability on every row, so most rounds use \(a_t \neq a^*\). Suboptimality is measured vs \(F^{\mathrm{fm}}(a_t)\), which mixes many rows—so the **global** rolling rate often decreases slowly or not at all even when the follower learns well on the Stackelberg row. Use **`exp_optional_learning_curves_at_a_star.png`** for the theory-relevant trend; for a stronger **global** downward slope (same Alg. 1), try longer \(T\), more \(N_{\mathrm{off}}\), smaller \(\gamma\), or `--learning-curve-paper-profile`.
-
-**Outputs:** `exp_optional_learning_curves.png`, `exp_optional_learning_curves_at_a_star.png`.
-
----
-
-## File structure (what matters)
-
-| File | Role |
-|------|------|
-| **`run_experiments.py`** | **Main entry:** CLI, tabular environment, EXP3 leader, `simulate_run`, Experiment 1–2, optional learning curves, optional Experiment 3, plotting. |
-| **`hybrid_fmucb.py`** | Core **Algorithm 1** pieces: manipulation contrast, pessimistic leader feasibility, `hybrid_fmucb_pick`, `true_best_manipulation` (\(F^{\mathrm{fm}}\)), offline certification helpers, confidence radii. |
-| **`experiment_common.py`**, **`experiment_1.py`**, **`experiment_2.py`**, **`experiment_3.py`** | Modular versions of experiments + shared helpers; useful for reuse or reading structure. The **`python run_experiments.py`** workflow uses the self-contained code in `run_experiments.py` plus imports from **`hybrid_fmucb.py`** only. |
-| **`experiment.md`** | Extra detail on metrics and paper alignment (if present). |
-| **`requirements.txt`** | `numpy`, `matplotlib`, `tqdm`. |
-
----
-
-## Metric note
-
-**\(T_{f,w}\)** counts rounds where \(b_t \neq F^{\mathrm{fm}}(a_t)\), with \(F^{\mathrm{fm}}\) the **true** best *qualified* manipulation rule from the ground-truth game (not plain per-round best-response error unless noted for Exp 3).
-
----
-
-## Citation / theory
-
-See your paper PDF and `experiment.md` for definitions (pooled means, pessimistic leader contrast, \(C_{\mathrm{man}}\), tabular vs contextual algorithms).
+| Parameter | 4×4 | 6×6 | 8×8 |
+|-----------|-----|-----|-----|
+| Horizon T | 5000 | 8000 | 12000 |
+| N_off grid (exp1) | 0–8000 | 0–15000 | 0–30000 |
+| N_off fixed (exp2) | 1000 | 2000 | 4000 |
+| Game seeds | 20 | 20 | 20 |
+| Random seeds | 24 | 24 | 24 |
+| EXP3 γ | 0.01 | 0.01 | 0.01 |
+| Confidence δ | 0.05 | 0.05 | 0.05 |
