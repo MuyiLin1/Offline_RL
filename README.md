@@ -1,14 +1,11 @@
 # Hybrid Offline-Online Follower Manipulation in General-Sum Stackelberg Games
 
-Synthetic experiments for **hybrid offline–online follower manipulation** in Stackelberg bandits (NeurIPS 2026 submission).
-
 ---
 
 ## Repository Structure
 
 ```
 paper/            LaTeX source and final figures
-  latex.tex       Main paper
   figures/        All figures referenced in the paper
 
 code/             Source code
